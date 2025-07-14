@@ -1,105 +1,173 @@
-# n8n Docker Setup
+# N8N Docker Setup con Tunnel
 
-Este proyecto contiene la configuración Docker para ejecutar n8n (workflow automation platform).
+Este proyecto configura N8N usando Docker Compose con soporte para tunnel, basado en la documentación oficial de N8N.
 
-## Archivos incluidos
+## ¿Qué es el Tunnel de N8N?
 
-- `Dockerfile`: Configuración de la imagen Docker
-- `docker-compose.yml`: Configuración de servicios con Docker Compose
-- `.dockerignore`: Archivos excluidos del contexto de construcción
+El tunnel de N8N es una funcionalidad que permite:
+- Crear un túnel seguro desde internet hacia tu instancia local de N8N
+- Recibir webhooks de servicios externos sin configurar port forwarding
+- Probar integraciones durante el desarrollo
+- Acceso público temporal sin configurar SSL o dominios
 
-## Uso rápido
+⚠️ **ADVERTENCIA**: El tunnel está diseñado para desarrollo y testing. **NO** se recomienda para producción.
 
-### Opción 1: Docker Compose (Recomendado)
+## Características
 
+- ✅ Configuración completa con tunnel habilitado
+- ✅ Soporte para PostgreSQL (opcional)
+- ✅ Configuración de timezone
+- ✅ Variables de entorno organizadas
+- ✅ Volúmenes persistentes
+- ✅ Red Docker personalizada
+- ✅ Autenticación básica opcional
+- ✅ Encriptación configurable
+
+## Requisitos Previos
+
+- Docker
+- Docker Compose
+
+## Instalación y Uso
+
+1. **Clona o descarga los archivos**:
+   ```bash
+   git clone <tu-repositorio>
+   cd Automatizacion
+   ```
+
+2. **Configura las variables de entorno**:
+   ```bash
+   cp .env.example .env
+   nano .env
+   ```
+
+3. **Inicia N8N**:
+   ```bash
+   docker-compose up -d
+   ```
+
+4. **Accede a N8N**:
+   - Local: http://localhost:5678
+   - Tunnel: Se mostrará la URL del tunnel en los logs
+
+5. **Ver logs y URL del tunnel**:
+   ```bash
+   docker-compose logs n8n
+   ```
+
+## Configuración
+
+### Variables de entorno principales
+
+| Variable | Descripción | Valor por defecto |
+|----------|-------------|-------------------|
+| `N8N_TUNNEL` | Habilita el tunnel | `true` |
+| `N8N_TUNNEL_SUBDOMAIN` | Subdominio personalizado | `mi-n8n-tunnel` |
+| `GENERIC_TIMEZONE` | Zona horaria | `Europe/Madrid` |
+
+### Usando PostgreSQL
+
+Para usar PostgreSQL en lugar de SQLite:
+
+1. Descomenta las líneas de PostgreSQL en `docker-compose.yml`
+2. Configura las variables de PostgreSQL en `.env`
+3. Reinicia los servicios:
+   ```bash
+   docker-compose down
+   docker-compose up -d
+   ```
+
+### Seguridad (recomendado para producción)
+
+1. **Habilitar autenticación básica**:
+   ```env
+   N8N_BASIC_AUTH_ACTIVE=true
+   N8N_BASIC_AUTH_USER=admin
+   N8N_BASIC_AUTH_PASSWORD=tu-password-seguro
+   ```
+
+2. **Configurar clave de encriptación**:
+   ```env
+   N8N_ENCRYPTION_KEY=tu-clave-de-32-caracteres-aqui
+   ```
+
+## Comandos Útiles
+
+### Gestión del servicio
 ```bash
-# Construir y ejecutar
+# Iniciar servicios
 docker-compose up -d
 
-# Ver logs
-docker-compose logs -f
-
-# Detener
+# Parar servicios
 docker-compose down
+
+# Ver logs
+docker-compose logs -f n8n
+
+# Reiniciar N8N
+docker-compose restart n8n
+
+# Actualizar a la última versión
+docker-compose pull
+docker-compose up -d
 ```
 
-### Opción 2: Docker Build + Run
-
+### Backup y restauración
 ```bash
-# Construir la imagen
-docker build -t mi-n8n .
-
-# Ejecutar el contenedor
-docker run -d \
-  --name n8n \
-  -p 5678:5678 \
-  -v n8n_data:/home/node/.n8n \
-  mi-n8n
-```
-
-### Opción 3: Imagen oficial directa
-
-```bash
-docker run -it --rm \
-  --name n8n \
-  -p 5678:5678 \
-  -v n8n_data:/home/node/.n8n \
-  docker.n8n.io/n8nio/n8n
-```
-
-## Acceso a n8n
-
-Una vez ejecutado, accede a n8n en: http://localhost:5678
-
-## Configuración con base de datos
-
-Para usar PostgreSQL en lugar de SQLite, descomenta las secciones correspondientes en `docker-compose.yml`.
-
-## Comandos útiles
-
-```bash
-# Ver contenedores ejecutándose
-docker ps
-
-# Ver volúmenes
-docker volume ls
-
-# Inspeccionar volumen de datos
-docker volume inspect n8n_data
-
-# Hacer backup del volumen
-docker run --rm \
-  -v n8n_data:/data \
-  -v $(pwd):/backup \
-  ubuntu tar czf /backup/n8n_backup.tar.gz /data
+# Crear backup
+docker run --rm -v n8n_data:/data -v $(pwd):/backup alpine tar czf /backup/n8n-backup.tar.gz -C /data .
 
 # Restaurar backup
-docker run --rm \
-  -v n8n_data:/data \
-  -v $(pwd):/backup \
-  ubuntu tar xzf /backup/n8n_backup.tar.gz -C /
+docker run --rm -v n8n_data:/data -v $(pwd):/backup alpine tar xzf /backup/n8n-backup.tar.gz -C /data
 ```
 
-## Variables de entorno disponibles
+## Desarrollo
 
-- `N8N_HOST`: Host de n8n (default: 0.0.0.0)
-- `N8N_PORT`: Puerto de n8n (default: 5678)
-- `N8N_PROTOCOL`: Protocolo (http/https)
-- `NODE_ENV`: Entorno de Node.js
-- `WEBHOOK_URL`: URL base para webhooks
-
-## Troubleshooting
-
-### Verificar logs
-```bash
-docker logs n8n
-# o con docker-compose
-docker-compose logs n8n
+### Montar archivos locales
+Puedes montar una carpeta local para archivos personalizados:
+```yaml
+volumes:
+  - ./local-files:/files
 ```
 
-### Reiniciar servicio
-```bash
-docker restart n8n
-# o con docker-compose
-docker-compose restart n8n
+### Variables adicionales de desarrollo
+```env
+# Para desarrollo
+NODE_ENV=development
+N8N_LOG_LEVEL=debug
 ```
+
+## Solución de Problemas
+
+### El tunnel no funciona
+1. Verifica que `N8N_TUNNEL=true` esté configurado
+2. Revisa los logs: `docker-compose logs n8n`
+3. Asegúrate de que el puerto 5678 no esté siendo usado
+
+### Problemas de conexión a base de datos
+1. Verifica que PostgreSQL esté corriendo: `docker-compose ps`
+2. Revisa las credenciales en `.env`
+3. Verifica la conectividad: `docker-compose exec n8n ping postgres`
+
+### Pérdida de datos
+- Los datos se persisten en volúmenes Docker
+- Hacer backups regulares en producción
+- No eliminar volúmenes sin backup
+
+## URLs Importantes
+
+- **Interfaz local**: http://localhost:5678
+- **API**: http://localhost:5678/api/v1/
+- **Documentación N8N**: https://docs.n8n.io/
+- **Community**: https://community.n8n.io/
+
+## Licencia
+
+N8N utiliza la Sustainable Use License. Consulta la documentación oficial para más detalles.
+
+## Soporte
+
+- [Documentación oficial](https://docs.n8n.io/)
+- [GitHub Issues](https://github.com/n8n-io/n8n/issues)
+- [Community Forum](https://community.n8n.io/)
