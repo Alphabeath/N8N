@@ -9,6 +9,7 @@ services:
       - "5678:5678"
     environment:
       # Basic configuration
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
       - N8N_HOST=${SUBDOMAIN}.${DOMAIN_NAME}
       - N8N_PORT=5678
       - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
@@ -20,15 +21,18 @@ services:
       # Tunnel configuration - Habilita el túnel para desarrollo y testing
       - N8N_TUNNEL=true
       - N8N_TUNNEL_SUBDOMAIN=${N8N_TUNNEL_SUBDOMAIN}
-      
+      - N8N_TUNNEL_TIMEOUT=60000
+      - N8N_TUNNEL_RETRY_COUNT=5
+      - N8N_TUNNEL_RETRY_DELAY=5000
+      - WEBHOOK_TUNNEL_URL=https://${N8N_TUNNEL_SUBDOMAIN}.loca.lt
       # Database configuration (descomenta si usas PostgreSQL)
-      # - DB_TYPE=postgresdb
-      # - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
-      # - DB_POSTGRESDB_HOST=postgres
-      # - DB_POSTGRESDB_PORT=5432
-      # - DB_POSTGRESDB_USER=${POSTGRES_USER}
-      # - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
-      # - DB_POSTGRESDB_SCHEMA=${POSTGRES_SCHEMA}
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_DATABASE=${POSTGRES_DB}
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_USER=${POSTGRES_USER}
+      - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
+      - DB_POSTGRESDB_SCHEMA=${POSTGRES_SCHEMA}
       
       # Optional: Basic Auth (para mayor seguridad)
       # - N8N_BASIC_AUTH_ACTIVE=true
@@ -43,33 +47,63 @@ services:
       # Optional: Mount local files directory
       # - ./local-files:/files
     command: start --tunnel
-    # depends_on:
-    #   - postgres
+    depends_on:
+      - postgres
     networks:
       - n8n_network
 
   # PostgreSQL Database (opcional - descomenta si necesitas base de datos externa)
-  # postgres:
-  #   image: postgres:15
-  #   container_name: n8n-postgres
-  #   restart: always
-  #   environment:
-  #     - POSTGRES_USER=${POSTGRES_USER}
-  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-  #     - POSTGRES_DB=${POSTGRES_DB}
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
-  #   ports:
-  #     - "5432:5432"
-  #   networks:
-  #     - n8n_network
-
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    restart: always
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - n8n_network
+    expose:
+      - "5432"
+  redis:
+    image: redis:latest
+    container_name: n8n-redis
+    restart: always
+    command: >
+      redis-server --port 6379 --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - n8n_network
+  evolution-api:
+    container_name: evolution_api
+    image: atendai/evolution-api:v2.2.3
+    restart: always
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    volumes:
+      - evolution_instances:/evolution/instances
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - n8n_network
 volumes:
   n8n_data:
     driver: local
-  # postgres_data:
-  #   driver: local
-
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  evolution_instances:
 networks:
   n8n_network:
     driver: bridge
